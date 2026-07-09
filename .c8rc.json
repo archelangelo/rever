@@ -1,0 +1,9 @@
+{
+  "reporter": ["text", "text-summary"],
+  "include": ["src/server/diff/parse.ts"],
+  "check-coverage": true,
+  "lines": 95,
+  "branches": 95,
+  "functions": 95,
+  "statements": 95
+}
