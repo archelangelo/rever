@@ -1,6 +1,11 @@
 {
   "reporter": ["text", "text-summary"],
-  "include": ["src/server/diff/parse.ts"],
+  "include": [
+    "src/server/diff/parse.ts",
+    "src/server/review.ts",
+    "src/server/comments.ts",
+    "src/server/mcp.ts"
+  ],
   "check-coverage": true,
   "lines": 95,
   "branches": 95,

@@ -1,34 +1,22 @@
-import { useEffect, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
+import { ReviewDetail } from './ReviewDetail.js';
+import { ReviewList } from './ReviewList.js';
 
-interface Health {
-  status: string;
-  pid: number;
-  reviews: number;
-  uptime: number;
-}
-
+/** Minimal path-based routing: "/review/:id" → detail, everything else → the list. */
 export function App() {
-  const [health, setHealth] = useState<Health | null>(null);
-  const [error, setError] = useState<string | null>(null);
+  const [pathname, setPathname] = useState(window.location.pathname);
 
   useEffect(() => {
-    fetch('/health')
-      .then((r) => r.json())
-      .then(setHealth)
-      .catch((e) => setError(String(e)));
+    const onPop = () => setPathname(window.location.pathname);
+    window.addEventListener('popstate', onPop);
+    return () => window.removeEventListener('popstate', onPop);
   }, []);
 
-  return (
-    <main style={{ font: '16px/1.5 system-ui, sans-serif', maxWidth: '40rem', margin: '4rem auto', padding: '0 1rem' }}>
-      <h1>Rever</h1>
-      <p>Local, PR-style code review that closes the loop with Claude Code.</p>
-      {error && <p style={{ color: 'crimson' }}>Daemon unreachable: {error}</p>}
-      {health && (
-        <p>
-          Daemon <strong>{health.status}</strong> · pid {health.pid} · {health.reviews} review(s) ·
-          up {Math.round(health.uptime)}s
-        </p>
-      )}
-    </main>
-  );
+  const navigate = useCallback((to: string) => {
+    window.history.pushState({}, '', to);
+    setPathname(to);
+  }, []);
+
+  const match = pathname.match(/^\/review\/(\d+)/);
+  return match ? <ReviewDetail reviewId={Number(match[1])} navigate={navigate} /> : <ReviewList navigate={navigate} />;
 }
