@@ -133,6 +133,20 @@ test('summary thread carries verdict, has no code', async () => {
   assert.equal(t.comments[0].body, 'overall looks good');
 });
 
+test('bundle surfaces the latest summary verdict (loop-end signal)', async () => {
+  const { db, reviewId, snapshotId } = await fresh();
+  assert.equal(getReviewComments(db, reviewId).verdict, null);
+  createThread(db, {
+    snapshotId,
+    kind: 'summary',
+    author: 'user',
+    body: 'ship it',
+    verdict: 'approve',
+    publish: true,
+  });
+  assert.equal(getReviewComments(db, reviewId).verdict, 'approve');
+});
+
 test('file-level thread has no code block', async () => {
   const { db, reviewId, snapshotId } = await fresh();
   createThread(db, { snapshotId, kind: 'file', author: 'claude', body: 'file note', filePath: 'a.txt' });

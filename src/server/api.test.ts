@@ -171,3 +171,27 @@ test('authoring: reply to unknown thread → 400', async () => {
   const { status } = await post('/api/threads/999999/comments', { body: 'x' });
   assert.equal(status, 400);
 });
+
+test('SSE: a mutation pushes a change event to connected clients', async () => {
+  const controller = new AbortController();
+  const res = await fetch(`${base}/api/events`, {
+    signal: controller.signal,
+    headers: { Accept: 'text/event-stream' },
+  });
+  assert.match(res.headers.get('content-type') ?? '', /text\/event-stream/);
+  await new Promise((r) => setTimeout(r, 50)); // let the client subscribe
+
+  await post(`/api/snapshots/${snapshotId}/threads`, { kind: 'summary', body: 'sse ping', verdict: 'comment' });
+
+  const reader = res.body!.getReader();
+  const dec = new TextDecoder();
+  let buf = '';
+  const deadline = Date.now() + 3000;
+  while (Date.now() < deadline && !buf.includes('event: change')) {
+    const { value, done } = await reader.read();
+    if (done) break;
+    buf += dec.decode(value, { stream: true });
+  }
+  controller.abort();
+  assert.match(buf, /event: change/);
+});

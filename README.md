@@ -87,8 +87,9 @@ Start a **fresh** Claude Code session (MCP servers load at session start). Verif
    `resolve_thread`. When it re-stages and calls `create_snapshot`, you get a fresh review
    surface for the next round.
 
-> **Note:** live updates (M8) aren't built yet — after the agent replies or resolves, **refresh
-> the browser** to see the changes. Nothing is lost; it's just not pushed automatically.
+The browser updates **live** (via SSE) as the agent replies, resolves, or creates snapshots —
+no refresh needed. The `get_review_comments` bundle also surfaces the summary `verdict`, so
+the agent can treat `approve` as the "review done" signal.
 
 ### Reviewing committed history instead of staged changes
 
@@ -125,7 +126,6 @@ npm run typecheck  # tsc --noEmit
 ## Scope & limitations
 
 - Personal, **single-user, localhost-only** tool — no auth.
-- **No live sync yet** (refresh to see agent updates) — planned as M8.
 - Comments are **snapshot-scoped**: each snapshot keeps its own diff + comments; new
   snapshots start empty (they don't carry comments forward).
 - Quoted/non-ASCII filenames in diffs aren't fully decoded (a known edge).

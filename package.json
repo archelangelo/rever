@@ -16,7 +16,7 @@
     "start": "node dist/server/index.js",
     "test": "node --import tsx --test \"src/server/**/*.test.ts\"",
     "coverage": "c8 node --import tsx --test \"src/server/**/*.test.ts\"",
-    "e2e": "npm run build:web && REVER_WEB_DIST=\"$PWD/dist/web\" node --import tsx scripts/m6-e2e.ts && REVER_WEB_DIST=\"$PWD/dist/web\" node --import tsx scripts/m7-e2e.ts",
+    "e2e": "npm run build:web && for s in m6 m7 m8; do REVER_WEB_DIST=\"$PWD/dist/web\" node --import tsx \"scripts/$s-e2e.ts\" || exit 1; done",
     "typecheck": "tsc -p tsconfig.server.json --noEmit"
   },
   "dependencies": {

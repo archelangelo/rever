@@ -3,6 +3,7 @@ import express, { type Express } from 'express';
 import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { bus } from './bus.js';
 import { addComment, createThread, getSnapshotThreads, publishReview } from './comments.js';
 import type { Db } from './db.js';
 import { openDb } from './db.js';
@@ -126,6 +127,27 @@ export function createApp(db: Db = openDb()): Express {
   });
   app.post('/api/reviews/:id/publish', (req, res) => {
     res.json(publishReview(db, Number(req.params.id)));
+  });
+
+  // Live updates: SSE stream that emits a `change` event whenever review data mutates
+  // (via REST or MCP). The browser refetches on each. Heartbeat keeps the connection alive.
+  app.get('/api/events', (req, res) => {
+    res.status(200).set({
+      'Content-Type': 'text/event-stream',
+      'Cache-Control': 'no-cache',
+      Connection: 'keep-alive',
+    });
+
+    const onChange = () => res.write('event: change\ndata: {}\n\n');
+    bus.on('change', onChange); // subscribe before flushing, so no change is missed
+    res.flushHeaders?.();
+    res.write('retry: 3000\n\n');
+    const heartbeat = setInterval(() => res.write(': ping\n\n'), 25000);
+
+    req.on('close', () => {
+      clearInterval(heartbeat);
+      bus.off('change', onChange);
+    });
   });
 
   const indexHtml = path.join(WEB_DIST, 'index.html');

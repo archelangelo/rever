@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import {
   addReply,
   createThread,
@@ -40,6 +40,20 @@ export function ReviewDetail({ reviewId, navigate }: { reviewId: number; navigat
     getSnapshotDiff(snapshotId).then(setDiff).catch((e) => setError(String(e)));
     refreshThreads();
   }, [snapshotId, refreshThreads]);
+
+  // Live updates (SSE): refetch detail (new snapshots) + threads (new comments/status) on any
+  // change — including the agent's replies/resolves via MCP. A ref keeps the newest closure so
+  // we open the stream once. Snapshot diffs are immutable, so we never refetch those.
+  const refresh = useRef(() => {});
+  refresh.current = () => {
+    getReviewDetail(reviewId).then(setDetail).catch(() => {});
+    if (snapshotId != null) getSnapshotThreads(snapshotId).then(setThreads).catch(() => {});
+  };
+  useEffect(() => {
+    const es = new EventSource('/api/events');
+    es.addEventListener('change', () => refresh.current());
+    return () => es.close();
+  }, []);
 
   const onCreateThread = async (input: NewThread) => {
     if (snapshotId == null) return;

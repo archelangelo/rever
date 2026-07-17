@@ -11,7 +11,11 @@ export function ReviewList({ navigate }: { navigate: (to: string) => void }) {
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
-    getReviews().then(setReviews).catch((e) => setError(String(e)));
+    const load = () => getReviews().then(setReviews).catch((e) => setError(String(e)));
+    load();
+    const es = new EventSource('/api/events');
+    es.addEventListener('change', load); // new review / snapshot shows up live
+    return () => es.close();
   }, []);
 
   return (

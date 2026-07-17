@@ -1,4 +1,5 @@
 import type { Author, ThreadKind, ThreadSide, ThreadStatus, Verdict } from '../types/index.js';
+import { notifyChange } from './bus.js';
 import type { Db } from './db.js';
 import { parsePatch } from './diff/index.js';
 
@@ -58,7 +59,9 @@ export function createThread(db: Db, input: CreateThreadInput): { threadId: numb
       .run(threadId, input.author, input.body, publishedAt, now);
     return { threadId, commentId: Number(c.lastInsertRowid) };
   });
-  return run();
+  const result = run();
+  notifyChange();
+  return result;
 }
 
 /** Add a comment (reply) to an existing thread. */
@@ -74,6 +77,7 @@ export function addComment(db: Db, input: AddCommentInput): { commentId: number 
        VALUES (?, ?, ?, ?, ?, ?)`,
     )
     .run(input.threadId, input.parentCommentId ?? null, input.author, input.body, publishedAt, now);
+  notifyChange();
   return { commentId: Number(c.lastInsertRowid) };
 }
 
@@ -101,12 +105,15 @@ export function publishReview(db: Db, reviewId: number): { threads: number; comm
       .run(now, reviewId);
     return { threads: t.changes, comments: c.changes };
   });
-  return run();
+  const result = run();
+  notifyChange();
+  return result;
 }
 
 export function updateThreadStatus(db: Db, threadId: number, status: ThreadStatus): void {
   const res = db.prepare('UPDATE thread SET status = ? WHERE id = ?').run(status, threadId);
   if (res.changes === 0) throw new Error(`no such thread: ${threadId}`);
+  notifyChange();
 }
 
 export function resolveThread(db: Db, threadId: number): void {
@@ -150,6 +157,8 @@ export interface ReviewCommentsBundle {
   reviewId: number;
   snapshotId: number;
   seq: number;
+  /** Latest published summary verdict on the snapshot (loop-end signal). `approve` = done. */
+  verdict: Verdict | null;
   threads: ThreadDTO[];
 }
 
@@ -204,8 +213,18 @@ export function getReviewComments(
   sql += ' ORDER BY created_at, id';
   const threadRows = db.prepare(sql).all(...params) as ThreadRow[];
 
+  // Latest published summary verdict — independent of the status filter, so `approve` is
+  // still detected even once the summary thread is resolved.
+  const verdictRow = db
+    .prepare(
+      `SELECT verdict FROM thread
+       WHERE snapshot_id = ? AND kind = 'summary' AND published_at IS NOT NULL AND verdict IS NOT NULL
+       ORDER BY created_at DESC, id DESC LIMIT 1`,
+    )
+    .get(snap.id) as { verdict: Verdict } | undefined;
+
   const threads = threadRows.map((t) => toThreadDTO(db, snap.id, t, radius));
-  return { reviewId, snapshotId: snap.id, seq: snap.seq, threads };
+  return { reviewId, snapshotId: snap.id, seq: snap.seq, verdict: verdictRow?.verdict ?? null, threads };
 }
 
 function toThreadDTO(db: Db, snapshotId: number, t: ThreadRow, radius: number): ThreadDTO {

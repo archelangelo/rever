@@ -4,7 +4,8 @@
     "src/server/diff/parse.ts",
     "src/server/review.ts",
     "src/server/comments.ts",
-    "src/server/mcp.ts"
+    "src/server/mcp.ts",
+    "src/server/bus.ts"
   ],
   "check-coverage": true,
   "lines": 95,
