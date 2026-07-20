@@ -3,7 +3,7 @@ import express, { type Express } from 'express';
 import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { bus } from './bus.js';
+import { bus, notifyChange } from './bus.js';
 import { addComment, createThread, getSnapshotThreads, publishReview } from './comments.js';
 import type { Db } from './db.js';
 import { openDb } from './db.js';
@@ -93,19 +93,19 @@ export function createApp(db: Db = openDb()): Express {
   app.post('/api/snapshots/:id/threads', (req, res) => {
     try {
       const b = req.body ?? {};
-      res.json(
-        createThread(db, {
-          snapshotId: Number(req.params.id),
-          kind: b.kind,
-          author: 'user',
-          body: b.body,
-          filePath: b.filePath,
-          side: b.side,
-          startLine: b.startLine,
-          endLine: b.endLine,
-          verdict: b.verdict,
-        }),
-      );
+      const created = createThread(db, {
+        snapshotId: Number(req.params.id),
+        kind: b.kind,
+        author: 'user',
+        body: b.body,
+        filePath: b.filePath,
+        side: b.side,
+        startLine: b.startLine,
+        endLine: b.endLine,
+        verdict: b.verdict,
+      });
+      notifyChange();
+      res.json(created);
     } catch (e) {
       res.status(400).json({ error: (e as Error).message });
     }
@@ -113,20 +113,22 @@ export function createApp(db: Db = openDb()): Express {
   app.post('/api/threads/:id/comments', (req, res) => {
     try {
       const b = req.body ?? {};
-      res.json(
-        addComment(db, {
-          threadId: Number(req.params.id),
-          author: 'user',
-          body: b.body,
-          parentCommentId: b.parentCommentId,
-        }),
-      );
+      const created = addComment(db, {
+        threadId: Number(req.params.id),
+        author: 'user',
+        body: b.body,
+        parentCommentId: b.parentCommentId,
+      });
+      notifyChange();
+      res.json(created);
     } catch (e) {
       res.status(400).json({ error: (e as Error).message });
     }
   });
   app.post('/api/reviews/:id/publish', (req, res) => {
-    res.json(publishReview(db, Number(req.params.id)));
+    const published = publishReview(db, Number(req.params.id));
+    notifyChange();
+    res.json(published);
   });
 
   // Live updates: SSE stream that emits a `change` event whenever review data mutates

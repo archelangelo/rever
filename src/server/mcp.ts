@@ -1,6 +1,7 @@
 import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import type { CallToolResult } from '@modelcontextprotocol/sdk/types.js';
 import { z } from 'zod';
+import { notifyChange } from './bus.js';
 import { addComment, getReviewComments, resolveThread, updateThreadStatus } from './comments.js';
 import type { Db } from './db.js';
 import { createSnapshot, getSnapshotDiff, listReviews, startReview } from './review.js';
@@ -23,6 +24,13 @@ async function run(fn: () => unknown | Promise<unknown>): Promise<CallToolResult
   }
 }
 
+/** Like `run`, for tools that mutate: signals connected browsers on success only. */
+async function runMutating(fn: () => unknown | Promise<unknown>): Promise<CallToolResult> {
+  const result = await run(fn);
+  if (!result.isError) notifyChange();
+  return result;
+}
+
 /** Build a fresh MCP server exposing Rever's tools, backed by `db`. */
 export function createMcpServer(db: Db): McpServer {
   const server = new McpServer({ name: 'rever', version: '0.0.1' });
@@ -35,7 +43,7 @@ export function createMcpServer(db: Db): McpServer {
         'selector "staged" diffs HEAD vs the index). Returns reviewId, snapshotId, and a browser URL.',
       inputSchema: { repo_path: z.string(), selector: z.string().optional() },
     },
-    async ({ repo_path, selector }) => run(() => startReview(db, { repoPath: repo_path, selector })),
+    async ({ repo_path, selector }) => runMutating(() => startReview(db, { repoPath: repo_path, selector })),
   );
 
   server.registerTool(
@@ -76,7 +84,7 @@ export function createMcpServer(db: Db): McpServer {
       },
     },
     async ({ thread_id, body, parent_comment_id }) =>
-      run(() =>
+      runMutating(() =>
         addComment(db, {
           threadId: thread_id,
           author: 'claude',
@@ -94,7 +102,7 @@ export function createMcpServer(db: Db): McpServer {
       inputSchema: { thread_id: z.number().int() },
     },
     async ({ thread_id }) =>
-      run(() => {
+      runMutating(() => {
         resolveThread(db, thread_id);
         return { ok: true, threadId: thread_id, status: 'resolved' };
       }),
@@ -107,7 +115,7 @@ export function createMcpServer(db: Db): McpServer {
       inputSchema: { thread_id: z.number().int(), status: z.enum(['open', 'resolved']) },
     },
     async ({ thread_id, status }) =>
-      run(() => {
+      runMutating(() => {
         updateThreadStatus(db, thread_id, status);
         return { ok: true, threadId: thread_id, status };
       }),
@@ -121,7 +129,7 @@ export function createMcpServer(db: Db): McpServer {
         'of comments (the fresh review surface for the next round).',
       inputSchema: { review_id: z.number().int() },
     },
-    async ({ review_id }) => run(() => createSnapshot(db, review_id)),
+    async ({ review_id }) => runMutating(() => createSnapshot(db, review_id)),
   );
 
   server.registerTool(

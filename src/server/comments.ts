@@ -1,5 +1,4 @@
 import type { Author, ThreadKind, ThreadSide, ThreadStatus, Verdict } from '../types/index.js';
-import { notifyChange } from './bus.js';
 import type { Db } from './db.js';
 import { parsePatch } from './diff/index.js';
 
@@ -59,9 +58,7 @@ export function createThread(db: Db, input: CreateThreadInput): { threadId: numb
       .run(threadId, input.author, input.body, publishedAt, now);
     return { threadId, commentId: Number(c.lastInsertRowid) };
   });
-  const result = run();
-  notifyChange();
-  return result;
+  return run();
 }
 
 /** Add a comment (reply) to an existing thread. */
@@ -77,7 +74,6 @@ export function addComment(db: Db, input: AddCommentInput): { commentId: number 
        VALUES (?, ?, ?, ?, ?, ?)`,
     )
     .run(input.threadId, input.parentCommentId ?? null, input.author, input.body, publishedAt, now);
-  notifyChange();
   return { commentId: Number(c.lastInsertRowid) };
 }
 
@@ -105,15 +101,12 @@ export function publishReview(db: Db, reviewId: number): { threads: number; comm
       .run(now, reviewId);
     return { threads: t.changes, comments: c.changes };
   });
-  const result = run();
-  notifyChange();
-  return result;
+  return run();
 }
 
 export function updateThreadStatus(db: Db, threadId: number, status: ThreadStatus): void {
   const res = db.prepare('UPDATE thread SET status = ? WHERE id = ?').run(status, threadId);
   if (res.changes === 0) throw new Error(`no such thread: ${threadId}`);
-  notifyChange();
 }
 
 export function resolveThread(db: Db, threadId: number): void {

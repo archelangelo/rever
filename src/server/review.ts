@@ -1,7 +1,6 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import type { FileDiff } from '../types/index.js';
-import { notifyChange } from './bus.js';
 import type { Db } from './db.js';
 import { captureDiff, parsePatch, type CapturedDiff } from './diff/index.js';
 import { isGitRepo } from './git.js';
@@ -44,9 +43,7 @@ export async function startReview(db: Db, input: StartReviewInput): Promise<Capt
     const snapshotId = insertSnapshot(db, reviewId, 1, selector, captured, now);
     return { reviewId, snapshotId, seq: 1, url: reviewUrl(reviewId) };
   });
-  const result = run();
-  notifyChange();
-  return result;
+  return run();
 }
 
 /** Freezes a fresh snapshot (seq+1) on an existing review — starts empty of comments. */
@@ -66,9 +63,7 @@ export async function createSnapshot(db: Db, reviewId: number): Promise<CaptureR
     const snapshotId = insertSnapshot(db, reviewId, seq, review.selector, captured, now);
     return { reviewId, snapshotId, seq, url: reviewUrl(reviewId) };
   });
-  const result = run();
-  notifyChange();
-  return result;
+  return run();
 }
 
 function insertSnapshot(
