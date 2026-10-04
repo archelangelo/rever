@@ -5,3 +5,6 @@ coverage/
 .DS_Store
 
 docs/
+
+**/.codex/
+**/.claude/

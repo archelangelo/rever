@@ -3,8 +3,13 @@ import type { CallToolResult } from '@modelcontextprotocol/sdk/types.js';
 import { z } from 'zod';
 import { notifyChange } from './bus.js';
 import { addComment, getReviewComments, resolveThread, updateThreadStatus } from './comments.js';
+import type { Ctx } from './context.js';
 import type { Db } from './db.js';
-import { createSnapshot, getSnapshotDiff, listReviews, startReview } from './review.js';
+import type { Handlers } from './handlers/index.js';
+import { createSnapshot, getSnapshotDiff, startReview } from './review.js';
+
+/** MCP callers are always the agent. (No auth; identity is fixed per transport.) */
+const MCP_CTX: Ctx = { user: 'claude' };
 
 const okJson = (data: unknown): CallToolResult => ({
   content: [{ type: 'text', text: JSON.stringify(data, null, 2) }],
@@ -32,7 +37,7 @@ async function runMutating(fn: () => unknown | Promise<unknown>): Promise<CallTo
 }
 
 /** Build a fresh MCP server exposing Rever's tools, backed by `db`. */
-export function createMcpServer(db: Db): McpServer {
+export function createMcpServer(db: Db, handlers: Handlers): McpServer {
   const server = new McpServer({ name: 'rever', version: '0.0.1' });
 
   server.registerTool(
@@ -52,7 +57,7 @@ export function createMcpServer(db: Db): McpServer {
       description: 'List reviews (newest first), optionally filtered to one repo path. Use to recover a reviewId.',
       inputSchema: { repo_path: z.string().optional() },
     },
-    async ({ repo_path }) => run(() => listReviews(db, repo_path)),
+    async ({ repo_path }) => run(() => handlers.reviews.list(MCP_CTX, { repoPath: repo_path })),
   );
 
   server.registerTool(

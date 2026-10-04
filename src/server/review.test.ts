@@ -7,7 +7,7 @@ import { after, test } from 'node:test';
 import type { Db } from './db.js';
 import { openDb } from './db.js';
 import { captureDiff } from './diff/index.js';
-import { createSnapshot, getSnapshotDiff, listReviews, startReview } from './review.js';
+import { createSnapshot, getSnapshotDiff, startReview } from './review.js';
 
 function g(cwd: string, args: string[]): void {
   execFileSync('git', args, { cwd, stdio: 'pipe' });
@@ -169,15 +169,10 @@ test('createSnapshot: unknown review → throws', async () => {
   await assert.rejects(() => createSnapshot(db, 9999), /no such review/);
 });
 
-test('listReviews (filter + fallback path) and getSnapshotDiff (file + errors)', async () => {
+test('getSnapshotDiff (file + errors)', async () => {
   const repo = setupRepo();
   const db = tmpDb();
   const r = await startReview(db, { repoPath: repo });
-
-  assert.equal(listReviews(db).length, 1);
-  assert.equal(listReviews(db, repo).length, 1); // realpath match
-  assert.equal(listReviews(db, '/no/such/path/xyz').length, 0); // bestPath fallback, no match
-  assert.equal(listReviews(db)[0].latestSeq, 1);
 
   assert.match(getSnapshotDiff(db, r.snapshotId), /diff --git/);
   assert.match(getSnapshotDiff(db, r.snapshotId, 'a.txt'), /a\.txt/);

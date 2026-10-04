@@ -129,39 +129,6 @@ export interface ReviewSummary {
   latestSeq: number | null;
 }
 
-interface ReviewRow {
-  id: number;
-  repo_path: string;
-  selector: string;
-  title: string | null;
-  status: string;
-  created_at: string;
-}
-
-/** List reviews newest-first, optionally filtered to one repo (path canonicalized best-effort). */
-export function listReviews(db: Db, repoPath?: string): ReviewSummary[] {
-  const rows = (
-    repoPath
-      ? db.prepare('SELECT * FROM review WHERE repo_path = ? ORDER BY id DESC').all(bestPath(repoPath))
-      : db.prepare('SELECT * FROM review ORDER BY id DESC').all()
-  ) as ReviewRow[];
-  return rows.map((r) => {
-    const agg = db
-      .prepare('SELECT COUNT(*) AS n, MAX(seq) AS m FROM snapshot WHERE review_id = ?')
-      .get(r.id) as { n: number; m: number | null };
-    return {
-      id: r.id,
-      repoPath: r.repo_path,
-      selector: r.selector,
-      title: r.title,
-      status: r.status,
-      createdAt: r.created_at,
-      snapshots: agg.n,
-      latestSeq: agg.m,
-    };
-  });
-}
-
 export interface SnapshotSummary {
   id: number;
   seq: number;
@@ -180,6 +147,16 @@ export interface ReviewDetail {
   createdAt: string;
   repoExists: boolean; // false when the repo has moved/been deleted
   snapshots: SnapshotSummary[];
+}
+
+// Local until getReviewDetail migrates to the reviews DAO (which has its own copy).
+interface ReviewRow {
+  id: number;
+  repo_path: string;
+  selector: string;
+  title: string | null;
+  status: string;
+  created_at: string;
 }
 
 /** Review metadata + its snapshots (ascending seq), plus whether the repo still exists on disk. */
@@ -266,15 +243,6 @@ function canonicalizeRepo(repoPath: string): string {
     return fs.realpathSync(path.resolve(repoPath));
   } catch {
     throw new Error(`repo path not found: ${repoPath}`);
-  }
-}
-
-/** Like canonicalizeRepo but never throws — falls back to a plain absolute path. */
-function bestPath(p: string): string {
-  try {
-    return fs.realpathSync(path.resolve(p));
-  } catch {
-    return path.resolve(p);
   }
 }
 

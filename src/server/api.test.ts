@@ -81,6 +81,12 @@ test('GET /api/reviews lists the review', async () => {
   assert.equal(row.latestSeq, 2);
 });
 
+test('GET /api/reviews?repo= filters (no match → empty)', async () => {
+  const { status, body } = await get('/api/reviews?repo=/no/such/path/xyz');
+  assert.equal(status, 200);
+  assert.equal(body.length, 0);
+});
+
 test('GET /api/reviews/:id returns detail + snapshots', async () => {
   const { status, body } = await get(`/api/reviews/${reviewId}`);
   assert.equal(status, 200);

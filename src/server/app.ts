@@ -5,11 +5,18 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { bus, notifyChange } from './bus.js';
 import { addComment, createThread, getSnapshotThreads, publishReview } from './comments.js';
+import type { Ctx } from './context.js';
 import type { Db } from './db.js';
 import { openDb } from './db.js';
+import { makeHandlers } from './handlers/index.js';
 import { createMcpServer } from './mcp.js';
 import { DB_PATH } from './paths.js';
-import { getReviewDetail, getSnapshotStructured, listReviews } from './review.js';
+import { getReviewDetail, getSnapshotStructured } from './review.js';
+
+/** The default caller: the human reviewer. Used for all HTTP requests (no auth; identity is
+ *  fixed per transport). Named "default" because the human user is the ordinary principal —
+ *  the agent (MCP_CTX in mcp.ts) is the explicit exception. */
+const DEFAULT_CTX: Ctx = { user: 'user' };
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 // After build this file is dist/server/app.js, so the web bundle is dist/web.
@@ -34,6 +41,7 @@ const PLACEHOLDER_HTML = `<!doctype html>
 export function createApp(db: Db = openDb()): Express {
   const app = express();
   app.use(express.json());
+  const handlers = makeHandlers(db);
 
   app.get('/health', (_req, res) => {
     let reviews = -1;
@@ -48,7 +56,7 @@ export function createApp(db: Db = openDb()): Express {
   // MCP endpoint (Streamable HTTP, stateless request/response). Registered before the web
   // catch-all so it isn't shadowed. A fresh server+transport per request avoids cross-call state.
   app.post('/mcp', async (req, res) => {
-    const mcp = createMcpServer(db);
+    const mcp = createMcpServer(db, handlers);
     const transport = new StreamableHTTPServerTransport({
       sessionIdGenerator: undefined,
       enableJsonResponse: true,
@@ -68,8 +76,9 @@ export function createApp(db: Db = openDb()): Express {
   app.delete('/mcp', (_req, res) => res.status(405).json({ error: 'Method Not Allowed' }));
 
   // REST API for the browser UI (distinct from the agent's MCP surface).
-  app.get('/api/reviews', (_req, res) => {
-    res.json(listReviews(db));
+  app.get('/api/reviews', (req, res) => {
+    const repo = typeof req.query.repo === 'string' ? req.query.repo : undefined;
+    res.json(handlers.reviews.list(DEFAULT_CTX, { repoPath: repo }));
   });
   app.get('/api/reviews/:id', (req, res) => {
     try {
